@@ -30,6 +30,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <windows.h>
 
 extern "C"
 {
@@ -94,12 +95,18 @@ void print_error(const char* name, int err)
 
     if (av_strerror(err, errbuf, sizeof(errbuf)) < 0)
         errbuf_ptr = strerror(AVUNERROR(err));
-    av_log(NULL, AV_LOG_ERROR, "%s: %s\n", name, errbuf_ptr);
+    av_log(NULL, AV_LOG_ERROR, "%s: %s %d\n", name, errbuf_ptr,err);
 }
 
+/*
+av_seek_frame 参数flag为0，则返回当前时间后面的第一个关键帧,如果后面没有关键帧则返回-1
+单AVSEEK_FLAG_BACKWARD参数，则返回前面的一个关键帧
+AVSEEK_FLAG_ANY参数代表任意帧
+一般填个AVSEEK_FLAG_BACKWARD就代表向前找关键帧就够了
+*/
 int main(int argc, char **argv)
 {
-    char *url = "超级翁婿(第09集)_高清.MP4";
+    char *url = "超级翁婿(第09集)_超清.MP4";
     av_register_all();
     int err = 0;
 
@@ -110,17 +117,14 @@ int main(int argc, char **argv)
         return -1;
     }
 
-    printf("duration:%lld ms\n",pFormatContext->duration/(AV_TIME_BASE/1000));
 
     err = avformat_find_stream_info(pFormatContext,NULL);
     if ( err != 0) {
         print_error("avformat_find_stream_info",err);
         return -1;
     }
-
-    for (int i = 0; i < pFormatContext->nb_streams; ++i){
-        av_dump_format(pFormatContext,i,url,0);
-    }
+    
+    av_dump_format(pFormatContext,0,url,0);
 
     int video_index = -1;
     int audio_index = -1;
@@ -128,6 +132,7 @@ int main(int argc, char **argv)
         if (pFormatContext->streams[i]->codec->codec_type == AVMEDIA_TYPE_VIDEO) {
             video_index = i;
         }else if (pFormatContext->streams[i]->codec->codec_type == AVMEDIA_TYPE_AUDIO) {
+            
             audio_index = i;
         }
     }
@@ -175,35 +180,36 @@ int main(int argc, char **argv)
     
     FILE *plog = fopen(logname,"w+");
 
-    AVPacket packet;
+    AVPacket *pkt = av_packet_alloc();
     int count = 1;
     int got_picture_ptr = 0;
+    bool is_over = false;
     AVBitStreamFilterContext* h264bsfc = av_bitstream_filter_init("h264_mp4toannexb");
     while (1)
     {
-        err = av_read_frame(pFormatContext,&packet);
-        if (err >= 0){
-            if (packet.stream_index == video_index) { //packet pts dts的值是通过pFormatContext->streams[video_index]->time_base的单位，实际上就是mp4 track box里面的timescale
-#if 0                
-                fprintf(plog,"video seg bef seq: %-6d, dts: %-8lld, pts: %-8lld, size: %-6d, flags: %-2d, duration: %lld.\n",count,
-                    packet.dts,packet.pts,packet.size,packet.flags,av_rescale_q(packet.duration,pFormatContext->streams[video_index]->time_base,av_make_q(1, 1000)));
-#endif
-                if (packet.flags == 1)
+        err = av_read_frame(pFormatContext,pkt);
+        if (err == 0){
+            if (pkt->stream_index == video_index) { //packet pts dts的值是通过pFormatContext->streams[video_index]->time_base的单位，实际上就是mp4 track box里面的timescale
+             
+                fprintf(plog,"video seg bef seq: %-6d, dts: %-8lld,dts-time: %-8lld, pts: %-8lld, size: %-6d, flags: %-2d, duration: %lld.\n",count,
+                    pkt->dts,av_rescale_q(pkt->dts,pFormatContext->streams[video_index]->time_base,av_make_q(1, 1000)),pkt->pts,pkt->size,pkt->flags,av_rescale_q(pkt->duration,pFormatContext->streams[video_index]->time_base,av_make_q(1, 1000)));
+#if 0   
+                if (pkt->flags == 1)
                 {
                     fprintf(plog,"video seg end seq: %-6d, dts: %-8lld, pts: %-8lld, size: %-6d, flags: %-2d, duration: %lld.\n",count++,
-                        av_rescale_q(packet.dts,pFormatContext->streams[video_index]->time_base,av_make_q(1, 1000)),
-                        av_rescale_q(packet.pts,pFormatContext->streams[video_index]->time_base,av_make_q(1, 1000)),
-                        packet.size,
-                        packet.flags,
-                        av_rescale_q(packet.duration,pFormatContext->streams[video_index]->time_base,av_make_q(1, 1000)));
+                        av_rescale_q(pkt->dts,pFormatContext->streams[video_index]->time_base,av_make_q(1, 1000)),
+                        av_rescale_q(pkt->pts,pFormatContext->streams[video_index]->time_base,av_make_q(1, 1000)),
+                        pkt->size,
+                        pkt->flags,
+                        av_rescale_q(pkt->duration,pFormatContext->streams[video_index]->time_base,av_make_q(1, 1000)));
                 }
                 
-
-                av_bitstream_filter_filter(h264bsfc, pFormatContext->streams[video_index]->codec, NULL, &packet.data, &packet.size, packet.data, packet.size, 0);
+#endif
+                //av_bitstream_filter_filter(h264bsfc, pFormatContext->streams[video_index]->codec, NULL, &packet.data, &packet.size, packet.data, packet.size, 0);
 
                 //fwrite(packet.data,1,packet.size,pf);
                 //avcodec_decode_video2(pCodecCtx,pFrame,&got_picture_ptr,&packet);
-            }else if (packet.stream_index == audio_index) {
+            }else if (pkt->stream_index == audio_index) {
 #if 0
                 fprintf(plog,"audio seg bef seq: %-6d, dts: %-8lld, pts: %-8lld, size: %-6d, flags: %-2d, duration: %lld.\n",count,
                     packet.dts,packet.pts,
@@ -213,26 +219,43 @@ int main(int argc, char **argv)
 
 
                 fprintf(plog,"audio seg end seq: %-6d, dts: %-8lld, pts: %-8lld, size: %-6d, flags: %-2d, duration: %lld.\n",count++,
-                    av_rescale_q(packet.dts,pFormatContext->streams[audio_index]->time_base,av_make_q(1, 1000)),
-                    av_rescale_q(packet.pts,pFormatContext->streams[audio_index]->time_base,av_make_q(1, 1000)),
-                    packet.size,
-                    packet.flags,
-                    av_rescale_q(packet.duration,pFormatContext->streams[audio_index]->time_base,av_make_q(1, 1000)));
+                    av_rescale_q(pkt->dts,pFormatContext->streams[audio_index]->time_base,av_make_q(1, 1000)),
+                    av_rescale_q(pkt->pts,pFormatContext->streams[audio_index]->time_base,av_make_q(1, 1000)),
+                    pkt->size,
+                    pkt->flags,
+                    av_rescale_q(pkt->duration,pFormatContext->streams[audio_index]->time_base,av_make_q(1, 1000)));
 #endif
-
-
             }
-
-            av_free_packet(&packet);
         }else{
+            /*
+            #define AVSEEK_FLAG_BACKWARD 1 ///< seek backward
+            #define AVSEEK_FLAG_BYTE     2 ///< seeking based on position in bytes
+            #define AVSEEK_FLAG_ANY      4 ///< seek to any frame, even non-keyframes
+            #define AVSEEK_FLAG_FRAME    8 ///< seeking based on frame number
+            */
+            if (is_over == true)
+                break;
             print_error("av_read_frame",err);
-            break;
+            int64_t seektime = 10;
+            err = av_seek_frame(pFormatContext,video_index,av_rescale_q(seektime,av_make_q(1, 1),pFormatContext->streams[video_index]->time_base),AVSEEK_FLAG_BACKWARD | AVSEEK_FLAG_ANY); 
+            if (err != 0)
+            {
+                print_error("av_seek_frame",err);
+                break;
+            }
+            fprintf(plog,"*****************************************\n");
+            is_over = true;
+            continue;
         }
+        av_packet_unref(pkt);
     }
+
+    av_free_packet(pkt);
 
     av_bitstream_filter_close(h264bsfc);
 
     fclose(pf);
     fclose(plog);
     
+    getchar();
 }

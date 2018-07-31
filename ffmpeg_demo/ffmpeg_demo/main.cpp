@@ -40,6 +40,9 @@ extern "C"
     #include <libavutil/avutil.h>
 }
 
+#define SAVE_FRAME_INFO
+#define SAVE_RAW
+#define SAVE_YUV
 
 #define INBUF_SIZE 4096
 
@@ -241,7 +244,7 @@ int main(int argc, char **argv)
 {
    // return api_h264_test_main(argc,argv);
 
-    char *url = "pptiyu.mp4";
+    char *url = "1509340580.flv";
     av_register_all();
     int err = 0;
 
@@ -305,18 +308,35 @@ int main(int argc, char **argv)
     int numBytes = avpicture_get_size(AV_PIX_FMT_RGB24,pCodecCtx->width,pCodecCtx->height);
     char *buffer = (char*)av_malloc_array(numBytes,1);
     
-    FILE *pf = fopen("save.264","wb");
-    FILE *pf_yuv = fopen("save.yuv","wb");
-
     char logname[64] = "";
+
+#ifdef SAVE_RAW
+    memset(logname,0x00,sizeof(logname));
+    strcat(logname,url);
+    strcat(logname,".264");
+    FILE *pf_264 = fopen(logname,"wb");
+#endif
+
+#ifdef SAVE_YUV
+    memset(logname,0x00,sizeof(logname));
+    strcat(logname,url);
+    strcat(logname,".yuv");
+    FILE *pf_yuv = fopen(logname,"wb");
+    int frame_seq = 1;
+#endif
+
+    
+#ifdef SAVE_FRAME_INFO
+    memset(logname,0x00,sizeof(logname));
     strcat(logname,url);
     strcat(logname,".txt");
-    
-    FILE *plog = fopen(logname,"w+");
+    FILE *pf_frame = fopen(logname,"w+");
+    int packet_seq = 1;
+#endif
 
     AVPacket *pkt = av_packet_alloc();
     int count = 1;
-    int count_frame = 1;
+    
     int got_picture_ptr = 0;
     bool is_over = false;
     AVBitStreamFilterContext* h264bsfc = av_bitstream_filter_init("h264_mp4toannexb");
@@ -329,21 +349,59 @@ int main(int argc, char **argv)
     while (1)
     {
         err = av_read_frame(pFormatContext,pkt);
-        if (err == 0){
-            if (pkt->stream_index == video_index) { //packet pts dts的值是通过pFormatContext->streams[video_index]->time_base的单位，实际上就是mp4 track box里面的timescale
-             
-                fprintf(plog,"video packet bef seq: %-6d, dts: %-8lld,dts-time: %-8lld, pts: %-8lld, size: %-6d, flags: %-2d, duration: %lld %lld.\n",count,
-                    pkt->dts,av_rescale_q(pkt->dts,pFormatContext->streams[video_index]->time_base,av_make_q(1, 1000)),pkt->pts,pkt->size,pkt->flags,pkt->duration,av_rescale_q(pkt->duration,pFormatContext->streams[video_index]->time_base,av_make_q(1, 1000)));
+        if (err == 0)
+        {
+            if (pkt->stream_index == video_index) 
+            { //packet pts dts的值是通过pFormatContext->streams[video_index]->time_base的单位，实际上就是mp4 track box里面的timescale
 
+#ifdef SAVE_FRAME_INFO
+                fprintf(pf_frame,"seq: %-6d,video packet,"
+                    "dts: %-8lld,dts-time: %-8lld, pts: %-8lld, pts-time:%-8lld,size: %-6d, flags: %-2d, duration: %lld,duration-time: %lld.\n",
+                    packet_seq++,
+                    pkt->dts,
+                    av_rescale_q(pkt->dts,pFormatContext->streams[video_index]->time_base,av_make_q(1, 1000)),
+                    pkt->pts,
+                    av_rescale_q(pkt->pts,pFormatContext->streams[video_index]->time_base,av_make_q(1, 1000)),
+                    pkt->size,
+                    pkt->flags,
+                    pkt->duration,
+                    av_rescale_q(pkt->duration,pFormatContext->streams[video_index]->time_base,av_make_q(1, 1000)));
+#else 
+                if (pkt->flags == 1)
+                {
+                    fprintf(pf_frame,"seq: %-6d,video packet,"
+                        "dts: %-8lld,dts-time: %-8lld, pts: %-8lld, pts-time:%-8lld,size: %-6d, flags: %-2d, duration: %lld,duration-time: %lld.\n",
+                        packet_seq++,
+                        pkt->dts,
+                        av_rescale_q(pkt->dts,pFormatContext->streams[video_index]->time_base,av_make_q(1, 1000)),
+                        pkt->pts,
+                        av_rescale_q(pkt->pts,pFormatContext->streams[video_index]->time_base,av_make_q(1, 1000)),
+                        pkt->size,
+                        pkt->flags,
+                        pkt->duration,
+                        av_rescale_q(pkt->duration,pFormatContext->streams[video_index]->time_base,av_make_q(1, 1000)));
+                }
+#endif
+
+#ifdef SAVE_RAW
                 av_bitstream_filter_filter(h264bsfc, pFormatContext->streams[video_index]->codec, NULL, &pkt->data, &pkt->size, pkt->data, pkt->size, 0);
-                fwrite(pkt->data,1,pkt->size,pf);
+                fwrite(pkt->data,1,pkt->size,pf_264);
+#endif
 
                 avcodec_decode_video2(pCodecCtx,pFrame, &got_picture_ptr,pkt); 
                 if (got_picture_ptr)
                 {
-                    fprintf(plog,"video frame bef seq: %-6d, pts:%-9lld,packet dts: %-8lld,packet pts: %-8lld, flags: %-2d,pkt duration: %lld.\n",count_frame,
-                        pFrame->pts,pFrame->pkt_dts,pFrame->pkt_pts,pFrame->flags,pFrame->pkt_duration);
-     
+#ifdef SAVE_YUV
+                    fprintf(pf_frame,"seq: %-6d,video frame,"
+                        "pts: %-8lld,packet dts: %-8lld, packet pts: %-8lld, flags: %-2d, pkt duration: %lld\n",
+                        frame_seq++,
+                        pFrame->pts,
+                        pFrame->pkt_dts,
+                        pFrame->pkt_pts,
+                        pFrame->flags,
+                        pFrame->pkt_duration
+                        );
+
                     int a = 0, i;
                     for (i = 0; i<height; i++)
                     {
@@ -361,38 +419,21 @@ int main(int argc, char **argv)
                         a += width / 2;
                     }
                     fwrite(buf, 1, pCodecCtx->height * pCodecCtx->width * 3 / 2, pf_yuv);
-                }
-  #if 0
-                if (pkt->flags == 1)
-                {
-                    fprintf(plog,"video packet end seq: %-6d, dts: %-8lld, pts: %-8lld, size: %-6d, flags: %-2d, duration: %lld.\n",count++,
-                        av_rescale_q(pkt->dts,pFormatContext->streams[video_index]->time_base,av_make_q(1, 1000)),
-                        av_rescale_q(pkt->pts,pFormatContext->streams[video_index]->time_base,av_make_q(1, 1000)),
-                        pkt->size,
-                        pkt->flags,
-                        av_rescale_q(pkt->duration,pFormatContext->streams[video_index]->time_base,av_make_q(1, 1000)));
-                }
-                
 #endif
-                count ++;
-                count_frame ++;
-                
-              
+                }
             }else if (pkt->stream_index == audio_index) {
-#if 0
-                fprintf(plog,"audio seg bef seq: %-6d, dts: %-8lld, pts: %-8lld, size: %-6d, flags: %-2d, duration: %lld.\n",count,
-                    packet.dts,packet.pts,
-                    packet.size,
-                    packet.flags,
-                    av_rescale_q(packet.duration,pFormatContext->streams[audio_index]->time_base,av_make_q(1, 1000)));
-
-
-                fprintf(plog,"audio seg end seq: %-6d, dts: %-8lld, pts: %-8lld, size: %-6d, flags: %-2d, duration: %lld.\n",count++,
-                    av_rescale_q(pkt->dts,pFormatContext->streams[audio_index]->time_base,av_make_q(1, 1000)),
-                    av_rescale_q(pkt->pts,pFormatContext->streams[audio_index]->time_base,av_make_q(1, 1000)),
+#ifdef SAVE_FRAME_INFO
+                fprintf(pf_frame,"seq: %-6d,audio packet,"
+                    "dts: %-8lld,dts-time: %-8lld, pts: %-8lld, pts-time:%-8lld,size: %-6d, flags: %-2d, duration: %lld,duration-time: %lld.\n",
+                    packet_seq++,
+                    pkt->dts,
+                    av_rescale_q(pkt->dts,pFormatContext->streams[video_index]->time_base,av_make_q(1, 1000)),
+                    pkt->pts,
+                    av_rescale_q(pkt->pts,pFormatContext->streams[video_index]->time_base,av_make_q(1, 1000)),
                     pkt->size,
                     pkt->flags,
-                    av_rescale_q(pkt->duration,pFormatContext->streams[audio_index]->time_base,av_make_q(1, 1000)));
+                    pkt->duration,
+                    av_rescale_q(pkt->duration,pFormatContext->streams[video_index]->time_base,av_make_q(1, 1000)));
 #endif
             }
         }else{
@@ -413,7 +454,7 @@ int main(int argc, char **argv)
                 print_error("av_seek_frame",err);
                 break;
             }
-            fprintf(plog,"*****************************************\n");
+      
             is_over = true;
             continue;
         }
@@ -422,12 +463,25 @@ int main(int argc, char **argv)
     }
 
     av_free_packet(pkt);
-
+    av_frame_free(&pFrame);
     av_bitstream_filter_close(h264bsfc);
-
-    fclose(pf);
-    fclose(plog);
-    fclose(pf_yuv);
+    avcodec_close(pCodecCtx);
+    avcodec_free_context(&pCodecCtx);
+    avformat_close_input(&pFormatContext);
     
+
+#ifdef SAVE_RAW
+    fclose(pf_264);
+#endif
+
+#ifdef SAVE_YUV
+    fclose(pf_yuv);
+#endif
+
+
+#ifdef SAVE_FRAME_INFO
+    fclose(pf_frame);
+#endif
+
     getchar();
 }

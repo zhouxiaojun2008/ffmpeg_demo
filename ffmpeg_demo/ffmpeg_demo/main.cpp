@@ -393,7 +393,7 @@ int main(int argc, char **argv)
                 {
 #ifdef SAVE_YUV
                     fprintf(pf_frame,"seq: %-6d,video frame,"
-                        "pts: %-8lld,packet dts: %-8lld, packet pts: %-8lld, flags: %-2d, pkt duration: %lld\n",
+                        "pts: %-8lld,frame dts: %-8lld, frame pts: %-8lld, flags: %-2d, frame duration: %lld\n",
                         frame_seq++,
                         pFrame->pts,
                         pFrame->pkt_dts,

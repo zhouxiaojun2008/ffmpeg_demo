@@ -38,6 +38,7 @@ extern "C"
     #include <libavformat/avformat.h>
     #include <libswscale/swscale.h>
     #include <libavutil/avutil.h>
+    #include <libavutil/imgutils.h>
 }
 
 #define SAVE_FRAME_INFO
@@ -101,150 +102,41 @@ void print_error(const char* name, int err)
     av_log(NULL, AV_LOG_ERROR, "%s: %s %d\n", name, errbuf_ptr,err);
 }
 
-static int video_decode_example(const char *input_filename)
-{
-    AVCodec *codec = NULL;
-    AVCodecContext *ctx= NULL;
-    AVCodecParameters *origin_par = NULL;
-    AVFrame *fr = NULL;
-    uint8_t *byte_buffer = NULL;
-    AVPacket pkt;
-    AVFormatContext *fmt_ctx = NULL;
-    int number_of_written_bytes;
-    int video_stream;
-    int got_frame = 0;
-    int byte_buffer_size;
-    int i = 0;
-    int result;
-    int end_of_stream = 0;
-
-    result = avformat_open_input(&fmt_ctx, input_filename, NULL, NULL);
-    if (result < 0) {
-        av_log(NULL, AV_LOG_ERROR, "Can't open file\n");
-        return result;
-    }
-
-    result = avformat_find_stream_info(fmt_ctx, NULL);
-    if (result < 0) {
-        av_log(NULL, AV_LOG_ERROR, "Can't get stream info\n");
-        return result;
-    }
-
-    video_stream = av_find_best_stream(fmt_ctx, AVMEDIA_TYPE_VIDEO, -1, -1, NULL, 0);
-    if (video_stream < 0) {
-        av_log(NULL, AV_LOG_ERROR, "Can't find video stream in input file\n");
-        return -1;
-    }
-
-    origin_par = fmt_ctx->streams[video_stream]->codecpar;
-
-    codec = avcodec_find_decoder(origin_par->codec_id);
-    if (!codec) {
-        av_log(NULL, AV_LOG_ERROR, "Can't find decoder\n");
-        return -1;
-    }
-
-    ctx = avcodec_alloc_context3(codec);
-    if (!ctx) {
-        av_log(NULL, AV_LOG_ERROR, "Can't allocate decoder context\n");
-        return AVERROR(ENOMEM);
-    }
-
-    result = avcodec_parameters_to_context(ctx, origin_par);
-    if (result) {
-        av_log(NULL, AV_LOG_ERROR, "Can't copy decoder context\n");
-        return result;
-    }
-
-    result = avcodec_open2(ctx, codec, NULL);
-    if (result < 0) {
-        av_log(ctx, AV_LOG_ERROR, "Can't open decoder\n");
-        return result;
-    }
-
-    fr = av_frame_alloc();
-    if (!fr) {
-        av_log(NULL, AV_LOG_ERROR, "Can't allocate frame\n");
-        return AVERROR(ENOMEM);
-    }
-
-    //byte_buffer_size = av_image_get_buffer_size(ctx->pix_fmt, ctx->width, ctx->height, 16);
-    //byte_buffer = av_malloc(byte_buffer_size);
-    if (!byte_buffer) {
-        av_log(NULL, AV_LOG_ERROR, "Can't allocate buffer\n");
-        return AVERROR(ENOMEM);
-    }
-
-    printf("#tb %d: %d/%d\n", video_stream, fmt_ctx->streams[video_stream]->time_base.num, fmt_ctx->streams[video_stream]->time_base.den);
-    i = 0;
-    av_init_packet(&pkt);
-    /*do {
-        if (!end_of_stream)
-            if (av_read_frame(fmt_ctx, &pkt) < 0)
-                end_of_stream = 1;
-        if (end_of_stream) {
-            pkt.data = NULL;
-            pkt.size = 0;
-        }
-        if (pkt.stream_index == video_stream || end_of_stream) {
-            got_frame = 0;
-            if (pkt.pts == AV_NOPTS_VALUE)
-                pkt.pts = pkt.dts = i;
-            result = avcodec_decode_video2(ctx, fr, &got_frame, &pkt);
-            if (result < 0) {
-                av_log(NULL, AV_LOG_ERROR, "Error decoding frame\n");
-                return result;
-            }
-            if (got_frame) {
-                number_of_written_bytes = av_image_copy_to_buffer(byte_buffer, byte_buffer_size,
-                    (const uint8_t* const *)fr->data, (const int*) fr->linesize,
-                    ctx->pix_fmt, ctx->width, ctx->height, 1);
-                if (number_of_written_bytes < 0) {
-                    av_log(NULL, AV_LOG_ERROR, "Can't copy image to buffer\n");
-                    return number_of_written_bytes;
-                }
-                printf("%d, %10"PRId64", %10"PRId64", %8"PRId64", %8d, 0x%08lx\n", video_stream,
-                    fr->pts, fr->pkt_dts, fr->pkt_duration,
-                    number_of_written_bytes, av_adler32_update(0, (const uint8_t*)byte_buffer, number_of_written_bytes));
-            }
-            av_packet_unref(&pkt);
-            av_init_packet(&pkt);
-        }
-        i++;
-    } while (!end_of_stream || got_frame);*/
-
-    av_packet_unref(&pkt);
-    av_frame_free(&fr);
-    avcodec_close(ctx);
-    avformat_close_input(&fmt_ctx);
-    avcodec_free_context(&ctx);
-    av_freep(&byte_buffer);
-    return 0;
-}
-
-int api_h264_test_main(int argc, char **argv)
-{
-    argv[1] = "超级翁婿(第09集)_超清.MP4";
-
-    av_register_all();
-
-    if (video_decode_example(argv[1]) != 0)
-        return 1;
-
-    return 0;
-}
-
+int change(int argc, char **argv);
 /*
 av_seek_frame 参数flag为0，则返回当前时间后面的第一个关键帧,如果后面没有关键帧则返回-1
 单AVSEEK_FLAG_BACKWARD参数，则返回前面的一个关键帧
 AVSEEK_FLAG_ANY参数代表任意帧
 一般填个AVSEEK_FLAG_BACKWARD就代表向前找关键帧就够了
 */
+
+
+int simplest_yuv420_split(char *url, int w, int h,int num);
+int simplest_yuv420_halfy(char *url, int w, int h,int num);
+int simplest_yuv420_gray(char *url, int w, int h,int num);
+int simplest_yuv420_border(char *url, int w, int h,int border,int num);
+int simplest_yuv420_graybar(int width, int height,int ymin,int ymax,int barnum,char *url_out);
+int simplest_rgb24_split(char *url, int w, int h,int num);
+int simplest_rgb24_to_bmp(const char *rgb24path,int width,int height,const char *bmppath);
+int simplest_rgb24_to_yuv420(char *url_in, int w, int h,int num,char *url_out);
+int simplest_yuv420_to_rgb24(char *url_in, int w, int h,int num,char *url_out);
+
 int main(int argc, char **argv)
 {
-   // return api_h264_test_main(argc,argv);
+    simplest_yuv420_split("1509340580.flv.yuv",848,480,1);
+    simplest_yuv420_halfy("1509340580.flv.yuv",848,480,1);
+    simplest_yuv420_gray("1509340580.flv.yuv",848,480,1);
+    simplest_yuv420_border("1509340580.flv.yuv",848,480,20,1);
+    simplest_yuv420_graybar(848, 480,0,255,10,"1509340580.flv.yuv");
+    simplest_rgb24_split("cie1931_500x500.rgb", 500, 500,1);
+    simplest_rgb24_to_bmp("cie1931_500x500.rgb",500,500,"output_lena.bmp");
+    simplest_yuv420_to_rgb24("short.mp4.yuv",1280,720,500,"short.mp4.rgb");
+    //simplest_rgb24_to_yuv420("lena_256x256_rgb24.rgb",256,256,1,"output_lena.yuv");
 
-    char *url = "1509340580.flv";
+    //return change(argc,argv);
+
+
+    char *url = "short.mp4";
     av_register_all();
     int err = 0;
 
@@ -345,6 +237,7 @@ int main(int argc, char **argv)
     memset(buf, 0, pCodecCtx->height * pCodecCtx->width * 3 / 2);
     int height = pCodecCtx->height;
     int width = pCodecCtx->width;
+    int ret = -1;
 
     while (1)
     {
@@ -388,6 +281,7 @@ int main(int argc, char **argv)
                 fwrite(pkt->data,1,pkt->size,pf_264);
 #endif
 
+#if 0
                 avcodec_decode_video2(pCodecCtx,pFrame, &got_picture_ptr,pkt); 
                 if (got_picture_ptr)
                 {
@@ -420,7 +314,50 @@ int main(int argc, char **argv)
                     }
                     fwrite(buf, 1, pCodecCtx->height * pCodecCtx->width * 3 / 2, pf_yuv);
 #endif
+#else
+                ret = avcodec_send_packet(pCodecCtx,pkt);
+                if (ret != 0)
+                {
+                    print_error("avcodec_send_packet",ret);
+                    continue;
                 }
+
+                while (1)
+                {
+                    ret = avcodec_receive_frame(pCodecCtx,pFrame);
+                    if (ret != 0)
+                    {
+                        break;
+                    }
+                    fprintf(pf_frame,"seq: %-6d,video frame,"
+                        "pts: %-8lld,frame dts: %-8lld, frame pts: %-8lld, flags: %-2d, frame duration: %lld\n",
+                        frame_seq++,
+                        pFrame->pts,
+                        pFrame->pkt_dts,
+                        pFrame->pkt_pts,
+                        pFrame->flags,
+                        pFrame->pkt_duration
+                        );
+
+                    int a = 0, i;
+                    for (i = 0; i<height; i++)
+                    {
+                        memcpy(buf + a, pFrame->data[0] + i * pFrame->linesize[0], width);
+                        a += width;
+                    }
+                    for (i = 0; i<height / 2; i++)
+                    {
+                        memcpy(buf + a, pFrame->data[1] + i * pFrame->linesize[1], width / 2);
+                        a += width / 2;
+                    }
+                    for (i = 0; i<height / 2; i++)
+                    {
+                        memcpy(buf + a, pFrame->data[2] + i * pFrame->linesize[2], width / 2);
+                        a += width / 2;
+                    }
+                    fwrite(buf, 1, pCodecCtx->height * pCodecCtx->width * 3 / 2, pf_yuv);
+                }
+#endif
             }else if (pkt->stream_index == audio_index) {
 #ifdef SAVE_FRAME_INFO
                 fprintf(pf_frame,"seq: %-6d,audio packet,"

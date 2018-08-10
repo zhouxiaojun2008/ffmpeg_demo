@@ -65,9 +65,15 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClCompile Include="change.cpp" />
+    <ClCompile Include="ffmpeg_tool.cpp" />
     <ClCompile Include="main.cpp" />
     <ClCompile Include="mediadata_h264.cpp" />
+    <ClCompile Include="util.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="ffmpeg_tool.h" />
+    <ClInclude Include="mediadata_h264.h" />
+    <ClInclude Include="util.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

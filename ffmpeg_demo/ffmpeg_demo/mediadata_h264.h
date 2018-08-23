@@ -1,0 +1,10 @@
+int simplest_yuv420_split(char *url, int w, int h,int num);
+int simplest_yuv420_halfy(char *url, int w, int h,int num);
+int simplest_yuv420_gray(char *url, int w, int h,int num);
+int simplest_yuv420_border(char *url, int w, int h,int border,int num);
+int simplest_yuv420_graybar(int width, int height,int ymin,int ymax,int barnum,char *url_out);
+int simplest_rgb24_split(char *url, int w, int h,int num);
+int simplest_rgb24_to_bmp(const char *rgb24path,int width,int height,const char *bmppath);
+int simplest_rgb24_to_yuv420(char *url_in, int w, int h,int num,char *url_out);
+int simplest_yuv420_to_rgb24(char *url_in, int w, int h,int num,char *url_out);
+int simplest_h264_parser(char *url);

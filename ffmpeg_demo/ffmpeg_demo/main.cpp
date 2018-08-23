@@ -63,7 +63,8 @@ int main(int argc, char **argv)
 
     //return change(argc,argv);
 
-    ffmpeg_media_transform("029.ts","029.mp4");
+    //ffmpeg_media_transform("029.ts","029.mp4");
+    ffmpeg_media_decorde("short.mp4");
 
     getchar();
 }

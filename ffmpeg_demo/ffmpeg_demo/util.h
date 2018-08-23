@@ -1,0 +1,1 @@
+int my_write(FILE *pf,long long len,unsigned char *data);

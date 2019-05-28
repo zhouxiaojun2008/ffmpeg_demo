@@ -413,10 +413,13 @@ int ffmpeg_media_decorde(char *url)
                 while (1)
                 {
                     ret = avcodec_receive_frame(pCodecCtx,pFrame);
-                    if (ret != 0)
-                    {
+                    if (ret == AVERROR(EAGAIN) || ret == AVERROR_EOF)
+                        continue;
+                    else if (ret < 0) {
+                        fprintf(stderr, "Error during decoding ret:%d\n",ret);
                         break;
                     }
+                    
                     fprintf(pf_frame,"seq: %-6d,video frame,"
                         "pts: %-8lld,frame dts: %-8lld, frame pts: %-8lld, flags: %-2d, frame duration: %lld,elapse:%d\n",
                         frame_seq++,

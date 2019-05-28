@@ -64,7 +64,11 @@ int main(int argc, char **argv)
     //return change(argc,argv);
 
     //ffmpeg_media_transform("029.ts","029.mp4");
-    ffmpeg_media_decorde("short.mp4");
+    //ffmpeg_media_demux("rtsp://184.72.239.149/vod/mp4://BigBuckBunny_175k.mov","short.264","short.aac");
+    //simplest_h264_parser("8010.264");
+    //simplest_h264_parser("short.264");
+    //ffmpeg_media_decorde("hkh265.mp4");
 
+    ffmpeg_media_push("C:\\Users\\zhouxiaojun\\Desktop\\detail.mp4");
     getchar();
 }
